@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Card, Col, Row, Space, Table, Tag, Typography } from 'antd'
+import { Alert, Button, Card, Col, Row, Space, Table, Tag, Typography } from 'antd'
 import {
   AlertOutlined,
   CheckCircleOutlined,
@@ -8,10 +8,12 @@ import {
   DatabaseOutlined,
   DesktopOutlined,
   DisconnectOutlined,
+  PlusOutlined,
 } from '@ant-design/icons'
 
+import { useQuickCreateSchedule } from '../../context/QuickCreateScheduleContext'
 import { loadDashboardData } from '../../services/dashboardService'
-import { getStoredRole } from '../../services/authService'
+import { canWrite, getStoredRole } from '../../services/authService'
 import { isViewerRole } from '../../utils/permissions'
 
 function SummaryCard({ title, value, icon, accent }) {
@@ -70,6 +72,8 @@ export default function DashboardPage() {
   const [usingMock, setUsingMock] = useState(false)
   const [loadErrorMessage, setLoadErrorMessage] = useState(null)
   const [partialFallback, setPartialFallback] = useState(false)
+  const canMutate = canWrite()
+  const { startQuickCreate } = useQuickCreateSchedule()
 
   useEffect(() => {
     let cancelled = false
@@ -173,9 +177,26 @@ export default function DashboardPage() {
               {usingMock ? 'Demo data (live API unavailable).' : 'Live metrics from server.'}
             </Typography.Text>
           </div>
-          <Tag icon={<ClockCircleOutlined />} color="default">
-            Updated at {data?.updatedAt || '--'}
-          </Tag>
+          <Space size={12} wrap>
+            {canMutate ? (
+              <Button
+                type="primary"
+                size="large"
+                icon={<PlusOutlined />}
+                onClick={startQuickCreate}
+                style={{
+                  borderRadius: 10,
+                  fontWeight: 600,
+                  boxShadow: '0 4px 14px rgba(26, 95, 180, 0.28)',
+                }}
+              >
+                Quick create schedule
+              </Button>
+            ) : null}
+            <Tag icon={<ClockCircleOutlined />} color="default">
+              Updated at {data?.updatedAt || '--'}
+            </Tag>
+          </Space>
         </Space>
 
         {usingMock && loadErrorMessage ? (
@@ -399,6 +420,7 @@ export default function DashboardPage() {
           </Col>
         </Row>
       </div>
+
     </div>
   )
 }
