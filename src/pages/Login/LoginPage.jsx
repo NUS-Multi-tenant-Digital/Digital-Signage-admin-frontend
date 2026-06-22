@@ -28,12 +28,10 @@ import {
   getApiErrorMessage,
   login,
   fetchCurrentUser,
-  markApplyViewerOnNextLogin,
-  registerAsViewerMember,
+  registerJoinOrganization,
   registerOrganization,
   verifyEmail,
 } from '../../services/authService'
-import { applyViewerRoleAfterRegistration } from '../../services/registrationAuth'
 
 const ORG_CODE_PATTERN = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/
 
@@ -68,12 +66,11 @@ export default function LoginPage() {
       setLoginError('')
       setLoginLoading(true)
       try {
-        let data = await login({
+        const data = await login({
           username: values.username.trim(),
           password: values.password,
         })
         if (data?.accessToken) {
-          data = await applyViewerRoleAfterRegistration(data)
           try {
             await fetchCurrentUser()
           } catch {
@@ -98,25 +95,26 @@ export default function LoginPage() {
       setRegisterError('')
       setRegisterLoading(true)
       try {
-        const username = values.adminUsername.trim()
-        const email = values.adminEmail.trim()
+        const username = values.username.trim()
+        const email = values.email.trim()
         const teamCode = values.organizationCode?.trim().toLowerCase()
 
         let data
         if (registerMode === 'join') {
-          data = await registerAsViewerMember({
+          data = await registerJoinOrganization({
             organizationCode: teamCode,
-            adminUsername: username,
-            adminPassword: values.adminPassword,
-            adminEmail: email,
+            username,
+            password: values.password,
+            email,
           })
         } else {
           data = await registerOrganization({
+            registrationType: 'CREATE_ORGANIZATION',
             organizationName: values.organizationName.trim(),
             organizationCode: teamCode,
-            adminUsername: username,
-            adminPassword: values.adminPassword,
-            adminEmail: email,
+            username,
+            password: values.password,
+            email,
           })
         }
 
@@ -151,21 +149,19 @@ export default function LoginPage() {
       setVerifyError('')
       setVerifyLoading(true)
       try {
-        await verifyEmail({
+        const verified = await verifyEmail({
           email: verifyContext.email,
           code: values.code,
         })
-        if (verifyContext.registerMode === 'join') {
-          markApplyViewerOnNextLogin()
-        }
+        const signInUsername = verified?.username ?? verifyContext.username
         message.success(
-          verifyContext.registerMode === 'join'
-            ? 'Email verified. Sign in — your account will be a Viewer.'
-            : 'Email verified. Sign in as administrator — you can manage users after login.',
+          verified?.username && verified.username !== verifyContext.username
+            ? `Email verified. Sign in as ${signInUsername} (Viewer).`
+            : 'Email verified. Sign in — your account is a Viewer.',
         )
         verifyForm.resetFields()
         setRegisterSubStep('form')
-        loginForm.setFieldsValue({ username: verifyContext.username })
+        loginForm.setFieldsValue({ username: signInUsername })
         setVerifyContext(null)
         setActiveTab('login')
       } catch (e) {
@@ -367,7 +363,7 @@ export default function LoginPage() {
                     showIcon
                     style={{ marginBottom: 12 }}
                     message="Viewer registration"
-                    description="Use your team organization code. If taken, a member code is created for you. Role becomes Viewer after verify and first login."
+                    description="Enter your team's existing organization code. After email verification you join as a Viewer."
                   />
                 ) : null}
 
@@ -419,7 +415,7 @@ export default function LoginPage() {
                 </Form.Item>
                 <Form.Item
                   label="Username"
-                  name="adminUsername"
+                  name="username"
                   rules={[
                     { required: true, message: 'Enter username' },
                     { min: 2, max: 64, message: 'Length 2–64 characters' },
@@ -433,7 +429,7 @@ export default function LoginPage() {
                 </Form.Item>
                 <Form.Item
                   label="Password"
-                  name="adminPassword"
+                  name="password"
                   rules={[
                     { required: true, message: 'Enter password' },
                     { min: 8, max: 128, message: 'Length 8–128 characters' },
@@ -447,7 +443,7 @@ export default function LoginPage() {
                 </Form.Item>
                 <Form.Item
                   label="Email"
-                  name="adminEmail"
+                  name="email"
                   rules={[
                     { required: true, message: 'Enter email' },
                     { type: 'email', message: 'Enter a valid email' },

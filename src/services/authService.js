@@ -9,8 +9,8 @@ const STORAGE_USER = 'ds_admin_user'
 const AUTH_LOGIN_PATH = '/api/admin/auth/login'
 const AUTH_REFRESH_PATH = '/api/admin/auth/refresh'
 const USERS_ME_PATH = '/api/admin/users/me'
-/** Set after org registration verify; first login demotes self to VIEWER (backend creates ADMIN). */
-const APPLY_VIEWER_ON_LOGIN_KEY = 'ds_apply_viewer_on_login'
+const AUTH_REGISTER_PATH = '/api/admin/auth/register'
+const AUTH_VERIFY_EMAIL_PATH = '/api/admin/auth/verify-email'
 
 /**
  * Base URL for API calls. In dev, Vite proxies `/api` to the backend (see vite.config.js).
@@ -387,113 +387,58 @@ export async function login(payload) {
   }
 }
 
-export function markApplyViewerOnNextLogin() {
-  sessionStorage.setItem(APPLY_VIEWER_ON_LOGIN_KEY, '1')
-}
-
-export function shouldApplyViewerOnLogin() {
-  return sessionStorage.getItem(APPLY_VIEWER_ON_LOGIN_KEY) === '1'
-}
-
-export function clearApplyViewerOnLogin() {
-  sessionStorage.removeItem(APPLY_VIEWER_ON_LOGIN_KEY)
-}
-
 /**
- * @param {unknown} error
- */
-export function isOrganizationCodeExistsError(error) {
-  const msg = getApiErrorMessage(error).toLowerCase()
-  return (
-    msg.includes('organization code already exists') ||
-    msg.includes('organization code already pending registration')
-  )
-}
-
-/**
- * Derive a unique organization code when joining a team whose base code is already taken.
- * @param {string} teamCode
- * @param {string} username
- */
-export function buildMemberOrganizationCode(teamCode, username) {
-  const base = String(teamCode || '')
-    .trim()
-    .toLowerCase()
-  const slug = String(username || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-  let code = slug ? `${base}-member-${slug}` : `${base}-member`
-  if (code.length > 64) {
-    code = code.slice(0, 64).replace(/-+$/g, '')
-  }
-  const orgCodePattern = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/
-  if (!orgCodePattern.test(code)) {
-    const suffix = Date.now().toString(36).slice(-8)
-    code = `${base}-m-${suffix}`.slice(0, 64)
-  }
-  return code
-}
-
-/**
- * Self-service Viewer registration under a team organization code.
- * Uses public /register; if the team code is taken, retries with a derived member code.
- *
- * @param {{ organizationCode: string, adminUsername: string, adminPassword: string, adminEmail: string }} payload
- */
-export async function registerAsViewerMember(payload) {
-  const teamCode = payload.organizationCode.trim().toLowerCase()
-  const username = payload.adminUsername.trim()
-  const body = {
-    organizationName: teamCode,
-    organizationCode: teamCode,
-    adminUsername: username,
-    adminPassword: payload.adminPassword,
-    adminEmail: payload.adminEmail.trim(),
-  }
-
-  try {
-    return await registerOrganization(body)
-  } catch (e) {
-    if (!isOrganizationCodeExistsError(e)) {
-      throw e
-    }
-    const memberCode = buildMemberOrganizationCode(teamCode, username)
-    return registerOrganization({
-      organizationName: `${teamCode} (${username})`,
-      organizationCode: memberCode,
-      adminUsername: username,
-      adminPassword: payload.adminPassword,
-      adminEmail: payload.adminEmail.trim(),
-    })
-  }
-}
-
-/**
- * RegisterOrganizationRequest — no role field; role is assigned by the backend after verify-email.
- * @param {{ organizationName: string, organizationCode: string, adminUsername: string, adminPassword: string, adminEmail: string }} payload
+ * POST /api/admin/auth/register — RegisterOrganizationRequest
+ * @param {{
+ *   registrationType: 'CREATE_ORGANIZATION' | 'JOIN_ORGANIZATION'
+ *   organizationName?: string
+ *   organizationCode: string
+ *   username: string
+ *   password: string
+ *   email: string
+ * }} payload
  */
 export async function registerOrganization(payload) {
   try {
     const body = {
-      organizationName: payload.organizationName,
-      organizationCode: payload.organizationCode,
-      adminUsername: payload.adminUsername,
-      adminPassword: payload.adminPassword,
-      adminEmail: payload.adminEmail,
+      registrationType: payload.registrationType,
+      organizationCode: String(payload.organizationCode).trim().toLowerCase(),
+      username: String(payload.username).trim(),
+      password: payload.password,
+      email: String(payload.email).trim(),
     }
-    const res = await authApi.post('/api/admin/auth/register', body, { skipAuthRefresh: true })
+    if (payload.registrationType === 'CREATE_ORGANIZATION') {
+      body.organizationName = String(payload.organizationName).trim()
+    }
+    const res = await authApi.post(AUTH_REGISTER_PATH, body, { skipAuthRefresh: true })
     return unwrapApiResponse(res)
   } catch (e) {
     throw new Error(getApiErrorMessage(e), { cause: e })
   }
 }
 
+/**
+ * Join an existing organization as Viewer (registrationType JOIN_ORGANIZATION).
+ * @param {{ organizationCode: string, username: string, password: string, email: string }} payload
+ */
+export async function registerJoinOrganization(payload) {
+  return registerOrganization({
+    registrationType: 'JOIN_ORGANIZATION',
+    organizationCode: payload.organizationCode,
+    username: payload.username,
+    password: payload.password,
+    email: payload.email,
+  })
+}
+
+/**
+ * POST /api/admin/auth/verify-email — VerifyEmailRequest
+ * @param {{ email: string, code: string }} payload
+ */
 export async function verifyEmail(payload) {
   try {
     const res = await authApi.post(
-      '/api/admin/auth/verify-email',
+      AUTH_VERIFY_EMAIL_PATH,
       {
         email: payload.email.trim(),
         code: String(payload.code).trim(),
