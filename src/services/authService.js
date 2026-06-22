@@ -400,6 +400,77 @@ export function clearApplyViewerOnLogin() {
 }
 
 /**
+ * @param {unknown} error
+ */
+export function isOrganizationCodeExistsError(error) {
+  const msg = getApiErrorMessage(error).toLowerCase()
+  return (
+    msg.includes('organization code already exists') ||
+    msg.includes('organization code already pending registration')
+  )
+}
+
+/**
+ * Derive a unique organization code when joining a team whose base code is already taken.
+ * @param {string} teamCode
+ * @param {string} username
+ */
+export function buildMemberOrganizationCode(teamCode, username) {
+  const base = String(teamCode || '')
+    .trim()
+    .toLowerCase()
+  const slug = String(username || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  let code = slug ? `${base}-member-${slug}` : `${base}-member`
+  if (code.length > 64) {
+    code = code.slice(0, 64).replace(/-+$/g, '')
+  }
+  const orgCodePattern = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/
+  if (!orgCodePattern.test(code)) {
+    const suffix = Date.now().toString(36).slice(-8)
+    code = `${base}-m-${suffix}`.slice(0, 64)
+  }
+  return code
+}
+
+/**
+ * Self-service Viewer registration under a team organization code.
+ * Uses public /register; if the team code is taken, retries with a derived member code.
+ *
+ * @param {{ organizationCode: string, adminUsername: string, adminPassword: string, adminEmail: string }} payload
+ */
+export async function registerAsViewerMember(payload) {
+  const teamCode = payload.organizationCode.trim().toLowerCase()
+  const username = payload.adminUsername.trim()
+  const body = {
+    organizationName: teamCode,
+    organizationCode: teamCode,
+    adminUsername: username,
+    adminPassword: payload.adminPassword,
+    adminEmail: payload.adminEmail.trim(),
+  }
+
+  try {
+    return await registerOrganization(body)
+  } catch (e) {
+    if (!isOrganizationCodeExistsError(e)) {
+      throw e
+    }
+    const memberCode = buildMemberOrganizationCode(teamCode, username)
+    return registerOrganization({
+      organizationName: `${teamCode} (${username})`,
+      organizationCode: memberCode,
+      adminUsername: username,
+      adminPassword: payload.adminPassword,
+      adminEmail: payload.adminEmail.trim(),
+    })
+  }
+}
+
+/**
  * RegisterOrganizationRequest — no role field; role is assigned by the backend after verify-email.
  * @param {{ organizationName: string, organizationCode: string, adminUsername: string, adminPassword: string, adminEmail: string }} payload
  */

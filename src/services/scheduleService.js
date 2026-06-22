@@ -1,3 +1,4 @@
+import dayjs from 'dayjs'
 import { authApi, getApiErrorMessage } from './authService'
 
 /** @typedef {'SCREEN' | 'GROUP' | 'DEFAULT'} ScheduleTargetType */
@@ -119,6 +120,7 @@ export function getScheduleApiErrorMessage(error) {
 export function toApiDateTime(value) {
   const d = value && typeof value.format === 'function' ? value : null
   if (d) {
+    if (!d.isValid()) throw new Error('Invalid date/time')
     return d.format('YYYY-MM-DDTHH:mm:ss')
   }
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -126,6 +128,10 @@ export function toApiDateTime(value) {
     return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`
   }
   if (typeof value === 'string' && value.trim()) {
+    const parsed = dayjs(value)
+    if (parsed.isValid()) {
+      return parsed.format('YYYY-MM-DDTHH:mm:ss')
+    }
     return value.trim()
   }
   throw new Error('Invalid date/time')

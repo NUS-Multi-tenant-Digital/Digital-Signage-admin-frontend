@@ -13,7 +13,10 @@ import {
 } from '@ant-design/icons'
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth/AuthProvider'
-import { canManageUsers, getStoredUsername } from '../services/authService'
+import QuickCreateScheduleFloater from '../components/schedule/QuickCreateScheduleFloater'
+import QuickScheduleWizard from '../components/schedule/QuickScheduleWizard'
+import { QuickCreateScheduleProvider } from '../context/QuickCreateScheduleContext'
+import { canManageUsers, getStoredRole, getStoredUsername } from '../services/authService'
 
 const { Header, Sider, Content } = Layout
 
@@ -55,10 +58,11 @@ export default function AdminLayout() {
   const location = useLocation()
   const { isAuthenticated, logout } = useAuth()
   const [collapsed, setCollapsed] = useState(false)
+  const role = getStoredRole()
 
   const menuItems = useMemo(
     () => (canManageUsers() ? [...BASE_MENU_ITEMS, ADMIN_MENU_ITEM] : BASE_MENU_ITEMS),
-    [],
+    [role],
   )
 
   const selectedKeys = useMemo(() => {
@@ -73,6 +77,8 @@ export default function AdminLayout() {
   if (!isAuthenticated) return <Navigate to="/login" replace />
 
   return (
+    <QuickCreateScheduleProvider>
+    <>
     <Layout style={{ minHeight: '100vh' }}>
       <Sider
         collapsible
@@ -179,6 +185,11 @@ export default function AdminLayout() {
         </Content>
       </Layout>
     </Layout>
+
+    <QuickScheduleWizard />
+    <QuickCreateScheduleFloater />
+    </>
+    </QuickCreateScheduleProvider>
   )
 }
 
