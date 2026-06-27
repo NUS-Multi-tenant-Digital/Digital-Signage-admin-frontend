@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { API_BASE_URL } from '../config/apiConfig'
 import { canManageUsers as canManageUsersForRole, canWrite as canWriteForRole, normalizeRole } from '../utils/permissions'
 
 const STORAGE_ACCESS_TOKEN = 'ds_admin_token'
@@ -12,17 +13,8 @@ const USERS_ME_PATH = '/api/admin/users/me'
 const AUTH_REGISTER_PATH = '/api/admin/auth/register'
 const AUTH_VERIFY_EMAIL_PATH = '/api/admin/auth/verify-email'
 
-/**
- * Base URL for API calls. In dev, Vite proxies `/api` to the backend (see vite.config.js).
- */
-const baseURL =
-  import.meta.env.VITE_API_BASE_URL != null &&
-  String(import.meta.env.VITE_API_BASE_URL).trim() !== ''
-    ? String(import.meta.env.VITE_API_BASE_URL).trim().replace(/\/+$/, '')
-    : ''
-
 export const authApi = axios.create({
-  baseURL,
+  baseURL: API_BASE_URL,
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 })
