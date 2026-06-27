@@ -16,7 +16,8 @@ import { useAuth } from '../auth/AuthProvider'
 import QuickCreateScheduleFloater from '../components/schedule/QuickCreateScheduleFloater'
 import QuickScheduleWizard from '../components/schedule/QuickScheduleWizard'
 import { QuickCreateScheduleProvider } from '../context/QuickCreateScheduleContext'
-import { canManageUsers, getStoredRole, getStoredUsername } from '../services/authService'
+import { canManageUsersForRole } from '../utils/permissions'
+import { getStoredRole, getStoredUsername } from '../services/authService'
 
 const { Header, Sider, Content } = Layout
 
@@ -61,7 +62,7 @@ export default function AdminLayout() {
   const role = getStoredRole()
 
   const menuItems = useMemo(
-    () => (canManageUsers() ? [...BASE_MENU_ITEMS, ADMIN_MENU_ITEM] : BASE_MENU_ITEMS),
+    () => (canManageUsersForRole(role) ? [...BASE_MENU_ITEMS, ADMIN_MENU_ITEM] : BASE_MENU_ITEMS),
     [role],
   )
 
